@@ -1,0 +1,10 @@
+Package: com.vita.qqtweakdemo
+Name: QQTweakDemo
+Version: 0.1-1
+Description: 自用。
+Section: Tweaks
+Depends: firmware (>= 5.0), mobilesubstrate
+Priority: optional
+Maintainer: vita
+Author: vita
+Architecture: iphoneos-arm

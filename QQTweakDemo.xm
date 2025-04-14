@@ -1,0 +1,325 @@
+#import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+
+@interface QQNewSettingsViewProvider : NSObject
+- (id)setupDataSource;
+@end
+
+@interface QUIListSectionModel : NSObject
+@property(nonatomic, strong) NSArray *rowModelArray;
+@end
+
+@interface QUIListCellBaseModel : NSObject
+@property(nonatomic, assign) NSInteger tag;
+@property(nonatomic, strong) id bizData;
+@property(nonatomic, assign) BOOL canEdit;
+@property(nonatomic, assign) BOOL isEditing;
+@property(nonatomic, copy) id didSelectBlock;
+@property(nonatomic, copy) id willDisplayBlock;
+@end
+
+@interface QUIListCellConfig : QUIListCellBaseModel
+@property(nonatomic, assign) NSInteger lineStyle;
+@property(nonatomic, strong) id leftStyle;
+@property(nonatomic, strong) id rightStyle;
+@property(nonatomic, copy) NSString *cellReuseIdentifier;
+@property(nonatomic, weak) id hostCell;
+@property(nonatomic, weak) id actionDelegate;
+@end
+
+@interface QUIListSingleLineConfig : QUIListCellConfig
+@end
+
+@interface QUILeftTextIconStyle : NSObject
+@property(nonatomic, copy) NSString *text;
+@property(nonatomic, strong) UIImage *icon;
+@end
+
+@interface QUIRightTextStyle : NSObject
+@property(nonatomic, copy) NSString *text;
+@end
+
+NSString *dumpObjectProperties(id obj);
+NSString *dumpClassInfo(Class cls);
+
+// Hook QQNewSettingsViewProvider类
+%hook QQNewSettingsViewProvider
+- (id)setupDataSource {
+	id originalDataSource = %orig;
+
+	// 检查返回值是否为NSArray
+	if ([originalDataSource isKindOfClass:[NSArray class]]) {
+		NSArray *sectionsArray = (NSArray *)originalDataSource;
+		if (sectionsArray.count > 1) {
+			// 获取第二项(索引为1)
+			id secondSection = sectionsArray[1];
+
+			// 检查这个section是否为QUIListSectionModel类型
+			if ([secondSection isKindOfClass:%c(QUIListSectionModel)]) {
+				QUIListSectionModel *sectionModel = (QUIListSectionModel *)secondSection;
+
+				// 检查rowModelArray是否存在且至少有一项
+				if (sectionModel.rowModelArray && sectionModel.rowModelArray.count > 0) {
+					NSMutableString *allItemsData = [NSMutableString string];
+
+					// 遍历所有行项目，查找QUIListItemStyle实例
+					for (id rowModel in sectionModel.rowModelArray) {
+						if ([rowModel respondsToSelector:@selector(leftStyle)]) {
+							id leftStyle = [rowModel performSelector:@selector(leftStyle)];
+							if (leftStyle && [leftStyle isKindOfClass:%c(QUIListItemStyle)]) {
+								NSString *styleData = dumpObjectProperties(leftStyle);
+								[allItemsData appendFormat:@"---左侧样式---\n%@\n", styleData];
+							}
+						}
+
+						if ([rowModel respondsToSelector:@selector(rightStyle)]) {
+							id rightStyle = [rowModel performSelector:@selector(rightStyle)];
+							if (rightStyle && [rightStyle isKindOfClass:%c(QUIListItemStyle)]) {
+								NSString *styleData = dumpObjectProperties(rightStyle);
+								[allItemsData appendFormat:@"---右侧样式---\n%@\n", styleData];
+							}
+						}
+					}
+
+					// 如果有数据，复制到剪贴板
+					if (allItemsData.length > 0) {
+						NSLog(@"QUIListItemStyle实例数据:\n%@", allItemsData);
+						UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+						[pasteboard setString:allItemsData];
+
+						// 显示提示
+						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+						  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"样式实例数据已复制"
+														 message:@"QUIListItemStyle的实例数据已复制到剪贴板"
+													  preferredStyle:UIAlertControllerStyleAlert];
+						  [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+						  UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+						  [rootVC presentViewController:alert animated:YES completion:nil];
+						});
+					}
+
+					// 获取第一项作为模板
+					id firstRowModel = sectionModel.rowModelArray[0];
+
+					id QQTweakModel = nil;
+					// 明确使用QUIListSingleLineConfig类
+					Class modelClass = %c(QUIListSingleLineConfig);
+					if (modelClass) {
+						QQTweakModel = [[modelClass alloc] init];
+
+						// 设置didSelectBlock
+						if ([QQTweakModel respondsToSelector:@selector(setDidSelectBlock:)]) {
+							id didSelectBlock = ^(id sender) {
+							  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"QQTweakDemo"
+															 message:@"设置页面"
+														  preferredStyle:UIAlertControllerStyleAlert];
+							  [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+							  UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+							  [rootVC presentViewController:alert animated:YES completion:nil];
+							};
+							[QQTweakModel setValue:didSelectBlock forKey:@"didSelectBlock"];
+						}
+
+						// 添加左侧样式配置
+						Class leftStyleClass = %c(QUILeftTextIconStyle);
+						Class rightStyleClass = %c(QUIRightTextStyle);
+
+						if (leftStyleClass && rightStyleClass) {
+							// 创建左侧样式
+							id leftStyle = [[leftStyleClass alloc] init];
+							[leftStyle setValue:@"QQTweak" forKey:@"title"];
+							UIImage *icon = [UIImage systemImageNamed:@"gear"];
+							[leftStyle setValue:icon forKey:@"image"];
+
+							// 设置leftStyle
+							[QQTweakModel setValue:leftStyle forKey:@"leftStyle"];
+
+							// 创建右侧样式
+							id rightStyle = [[rightStyleClass alloc] init];
+
+							// 设置箭头
+							[rightStyle setValue:@(YES) forKey:@"showArrow"];
+
+							// 设置详细文本
+							[rightStyle setValue:@"0.0.1" forKey:@"detailText"];
+
+							// 设置rightStyle
+							[QQTweakModel setValue:rightStyle forKey:@"rightStyle"];
+						}
+
+						// 设置willDisplayBlock
+						if ([QQTweakModel respondsToSelector:@selector(setWillDisplayBlock:)]) {
+							id willDisplayBlock = ^(id cell) {
+							};
+							[QQTweakModel setValue:willDisplayBlock forKey:@"willDisplayBlock"];
+						}
+					}
+
+					if (QQTweakModel) {
+						NSMutableArray *updatedRowModelArray = [sectionModel.rowModelArray mutableCopy];
+						[updatedRowModelArray insertObject:QQTweakModel atIndex:0];
+						sectionModel.rowModelArray = [updatedRowModelArray copy];
+					}
+
+					// 返回修改后的原始数组
+					return originalDataSource;
+				}
+			}
+		}
+	}
+
+	return originalDataSource;
+}
+
+%end
+
+// 添加一个函数来获取对象的属性值
+NSString *dumpObjectProperties(id obj) {
+	if (!obj)
+		return @"对象为空";
+
+	Class cls = object_getClass(obj);
+	NSMutableString *result = [NSMutableString stringWithFormat:@"对象类型: %s 的实例数据:\n", class_getName(cls)];
+
+	// 获取所有属性
+	unsigned int propertyCount;
+	objc_property_t *properties = class_copyPropertyList(cls, &propertyCount);
+
+	for (unsigned int i = 0; i < propertyCount; i++) {
+		objc_property_t property = properties[i];
+		const char *name = property_getName(property);
+		NSString *propertyName = [NSString stringWithUTF8String:name];
+
+		// 尝试通过KVC获取属性值
+		id value = nil;
+		@try {
+			value = [obj valueForKey:propertyName];
+			if (value) {
+				if ([value isKindOfClass:[NSString class]] || [value isKindOfClass:[NSNumber class]]) {
+					[result appendFormat:@"%@ = %@\n", propertyName, value];
+				} else {
+					[result appendFormat:@"%@ = <%@对象>\n", propertyName, [value class]];
+				}
+			} else {
+				[result appendFormat:@"%@ = nil\n", propertyName];
+			}
+		} @catch (NSException *e) {
+			[result appendFormat:@"%@ = <无法访问>\n", propertyName];
+		}
+	}
+
+	if (properties)
+		free(properties);
+	return result;
+}
+
+NSString *dumpClassInfo(Class cls) {
+	if (!cls)
+		return @"类不存在";
+
+	NSMutableString *result = [NSMutableString stringWithFormat:@"@interface %s : %s\n", class_getName(cls), class_getName(class_getSuperclass(cls))];
+
+	// 获取所有属性
+	unsigned int propertyCount;
+	objc_property_t *properties = class_copyPropertyList(cls, &propertyCount);
+
+	for (unsigned int i = 0; i < propertyCount; i++) {
+		objc_property_t property = properties[i];
+		const char *name = property_getName(property);
+		const char *attributes = property_getAttributes(property);
+
+		NSString *type = @"id";
+		if (attributes) {
+			NSString *attrStr = [NSString stringWithUTF8String:attributes];
+			NSArray *attrComponents = [attrStr componentsSeparatedByString:@","];
+			if (attrComponents.count > 0) {
+				NSString *typeComponent = attrComponents[0];
+				if ([typeComponent hasPrefix:@"T"]) {
+					NSString *typeStr = [typeComponent substringFromIndex:1];
+					if ([typeStr hasPrefix:@"@\""] && [typeStr hasSuffix:@"\""]) {
+						type = [typeStr substringWithRange:NSMakeRange(2, typeStr.length - 3)];
+					} else if ([typeStr isEqualToString:@"i"]) {
+						type = @"NSInteger";
+					} else if ([typeStr isEqualToString:@"f"]) {
+						type = @"float";
+					} else if ([typeStr isEqualToString:@"d"]) {
+						type = @"double";
+					} else if ([typeStr isEqualToString:@"B"]) {
+						type = @"BOOL";
+					} else {
+						type = typeStr;
+					}
+				}
+			}
+		}
+
+		[result appendFormat:@"@property (nonatomic) %@ %s;\n", type, name];
+	}
+
+	if (properties)
+		free(properties);
+
+	// 获取所有实例方法
+	unsigned int methodCount;
+	Method *methods = class_copyMethodList(cls, &methodCount);
+
+	for (unsigned int i = 0; i < methodCount; i++) {
+		Method method = methods[i];
+		SEL selector = method_getName(method);
+		const char *name = sel_getName(selector);
+		[result appendFormat:@"- (%@)%s;\n", @"id", name];
+	}
+
+	if (methods)
+		free(methods);
+
+	// 获取所有类方法
+	methodCount = 0;
+	methods = class_copyMethodList(object_getClass(cls), &methodCount);
+
+	for (unsigned int i = 0; i < methodCount; i++) {
+		Method method = methods[i];
+		SEL selector = method_getName(method);
+		const char *name = sel_getName(selector);
+		// 过滤掉Objective-C运行时自动生成的方法
+		if (strncmp(name, ".cxx_", 5) != 0 && strcmp(name, "load") != 0 && strcmp(name, "initialize") != 0) {
+			[result appendFormat:@"+ (%@)%s;\n", @"id", name];
+		}
+	}
+
+	if (methods)
+		free(methods);
+
+	[result appendString:@"@end\n"];
+	return result;
+}
+
+// 修改%ctor块，在初始化时提取QUIListItemStyle类信息
+%ctor {
+	%init;
+
+	// 延迟执行，确保目标类已加载
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	  Class itemStyleClass = %c(QUIListItemStyle);
+	  if (itemStyleClass) {
+		  NSString *headerContent = dumpClassInfo(itemStyleClass);
+		  NSLog(@"QUIListItemStyle类信息:\n%@", headerContent);
+
+		  // 复制到剪贴板
+		  UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+		  [pasteboard setString:headerContent];
+
+		  // 显示提示信息
+		  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"类信息已复制"
+										   message:@"QUIListItemStyle的头文件定义已复制到剪贴板"
+									    preferredStyle:UIAlertControllerStyleAlert];
+		    [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+		    UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+		    [rootVC presentViewController:alert animated:YES completion:nil];
+		  });
+	  } else {
+		  NSLog(@"QUIListItemStyle类不存在或未加载");
+	  }
+	});
+}
