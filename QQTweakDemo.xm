@@ -128,7 +128,11 @@ NSString *dumpClassInfo(Class cls);
 							// 创建左侧样式
 							id leftStyle = [[leftStyleClass alloc] init];
 							[leftStyle setValue:@"QQTweak" forKey:@"title"];
-							UIImage *icon = [UIImage systemImageNamed:@"gear"];
+							UIImage *icon = [[UIImage systemImageNamed:@"gear"] imageWithTintColor:[UIColor colorWithRed:33.0 / 255.0
+																	       green:33.0 / 255.0
+																		blue:33.0 / 255.0
+																	       alpha:1.0]
+														 renderingMode:UIImageRenderingModeAlwaysOriginal];
 							[leftStyle setValue:icon forKey:@"image"];
 
 							// 设置leftStyle
