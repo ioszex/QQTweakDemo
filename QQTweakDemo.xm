@@ -62,42 +62,6 @@ NSString *dumpClassInfo(Class cls);
 				if (sectionModel.rowModelArray && sectionModel.rowModelArray.count > 0) {
 					NSMutableString *allItemsData = [NSMutableString string];
 
-					// 遍历所有行项目，查找QUIListItemStyle实例
-					for (id rowModel in sectionModel.rowModelArray) {
-						if ([rowModel respondsToSelector:@selector(leftStyle)]) {
-							id leftStyle = [rowModel performSelector:@selector(leftStyle)];
-							if (leftStyle && [leftStyle isKindOfClass:%c(QUIListItemStyle)]) {
-								NSString *styleData = dumpObjectProperties(leftStyle);
-								[allItemsData appendFormat:@"---左侧样式---\n%@\n", styleData];
-							}
-						}
-
-						if ([rowModel respondsToSelector:@selector(rightStyle)]) {
-							id rightStyle = [rowModel performSelector:@selector(rightStyle)];
-							if (rightStyle && [rightStyle isKindOfClass:%c(QUIListItemStyle)]) {
-								NSString *styleData = dumpObjectProperties(rightStyle);
-								[allItemsData appendFormat:@"---右侧样式---\n%@\n", styleData];
-							}
-						}
-					}
-
-					// 如果有数据，复制到剪贴板
-					if (allItemsData.length > 0) {
-						NSLog(@"QUIListItemStyle实例数据:\n%@", allItemsData);
-						UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-						[pasteboard setString:allItemsData];
-
-						// 显示提示
-						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-						  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"样式实例数据已复制"
-														 message:@"QUIListItemStyle的实例数据已复制到剪贴板"
-													  preferredStyle:UIAlertControllerStyleAlert];
-						  [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
-						  UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-						  [rootVC presentViewController:alert animated:YES completion:nil];
-						});
-					}
-
 					// 获取第一项作为模板
 					id firstRowModel = sectionModel.rowModelArray[0];
 
@@ -301,29 +265,4 @@ NSString *dumpClassInfo(Class cls) {
 // 修改%ctor块，在初始化时提取QUIListItemStyle类信息
 %ctor {
 	%init;
-
-	// 延迟执行，确保目标类已加载
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-	  Class itemStyleClass = %c(QUIListItemStyle);
-	  if (itemStyleClass) {
-		  NSString *headerContent = dumpClassInfo(itemStyleClass);
-		  NSLog(@"QUIListItemStyle类信息:\n%@", headerContent);
-
-		  // 复制到剪贴板
-		  UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-		  [pasteboard setString:headerContent];
-
-		  // 显示提示信息
-		  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"类信息已复制"
-										   message:@"QUIListItemStyle的头文件定义已复制到剪贴板"
-									    preferredStyle:UIAlertControllerStyleAlert];
-		    [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
-		    UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-		    [rootVC presentViewController:alert animated:YES completion:nil];
-		  });
-	  } else {
-		  NSLog(@"QUIListItemStyle类不存在或未加载");
-	  }
-	});
 }
