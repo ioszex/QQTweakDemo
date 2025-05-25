@@ -8,7 +8,7 @@ INSTALL_TARGET_PROCESSES = SpringBoard
 
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = Bubblefishwchat
+TWEAK_NAME = QQTweakDemo
 
 $(TWEAK_NAME)_FILES = $(wildcard *.xm)
 
